@@ -17,8 +17,14 @@ defmodule Elixirpaxos do
 
     state = %{
     name: name,
+    participants: participants,
 
     }
+  end
+
+
+  def run(state) do
+
   end
 
 
