@@ -1,3 +1,6 @@
+Code.require('eventual_leader_detector.ex')
+Code.require('best_effort_broadcast.ex')
+
 defmodule Paxos do
   def start(name, participants) do
     pid = spawn(Paxos, :init, [name, paxos_proc])
@@ -9,7 +12,9 @@ defmodule Paxos do
   end
   @moduledoc """
   Documentation for `Paxos`.
-    need the eventual leader
+    Algorithm for solving consensus
+  group of machines with no leader, can we still arive at a single
+    common consensus value
 
   """
 
@@ -18,6 +23,9 @@ defmodule Paxos do
     name: name,
     participants: participants,
     leader: leader,
+    proposer: proposer,
+    acceptor: acceptor,
+    learner: learner,
     acceptors: [],
     value: 0,
 
@@ -32,6 +40,11 @@ defmodule Paxos do
 
 
 
+  end
+
+  defp prepare() do
+    #generate unique proposal number
+    #sends a prepare request to all other nodes
   end
 
   defp propose(pid, inst, value, t) do
