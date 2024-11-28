@@ -24,7 +24,7 @@ defmodule Paxos do
     participants: participants,
     leader: leader,
     proposer: proposer,
-    acceptor: acceptor,
+    acceptor: %MapSet{},
     learner: learner,
     acceptors: [],
     value: 0,
@@ -39,11 +39,20 @@ defmodule Paxos do
 
     state = receive do
 
+      {:propose} ->
+      state
+
+      {:deliver} ->
+      beb_broacast(m, state.processes)
+      {:accept} ->
+      state
+
+      {:leader} ->
+      get_le_name(state.processes)
+      state
+
 
     end
-
-
-
 
   end
 
