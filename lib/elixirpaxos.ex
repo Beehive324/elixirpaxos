@@ -60,4 +60,46 @@ defmodule Paxos do
   end
 
 
+  #Implementing BestEffort BroadCast
+
+  defp get_beb_name() do
+    {:registered_name, parent} = Process.info(self(), :registered_name)
+    String.to_atom(Atom.to_string(parent) <> "_beb")
+  end
+
+
+  defp start_beb(name) do
+    Process.register(self(), name)
+    pid = spawn(BestEffortBroadcast, :init, [])
+    Process.register(pid, get_beb_name())
+    Process.link(pid)
+  end
+
+  defp beb_broacast(m, dest) do
+    BestEffortBroadcast.beb_broadcast(Process.whereis(get_beb_nme()), m, dest)
+  end
+
+
+  #Implementing LeaderELection
+
+  defp get_le_name() do
+    {:registered_name, parent} = Process.info(self(), :registered_name)
+    String.to_atom(Atom.to_string(parent) <> "_beb")
+  end
+
+  defp start_le(name) do
+    Process.register(self(), name)
+    pid = spawn(EventualLeaderElection, :init, [])
+    Process.register(pid, get_le_name())
+    Process.link(pid)
+  end
+
+  defp eventual_leader_election() do
+    EventualLeaderElection.eventualleader(Process.whereis(get_le_name()))
+  end
+
+
+
+
+
 end
