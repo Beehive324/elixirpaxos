@@ -37,6 +37,11 @@ defmodule Paxos do
 
   def run(state) do
 
+    state = receive do
+
+
+    end
+
 
 
 

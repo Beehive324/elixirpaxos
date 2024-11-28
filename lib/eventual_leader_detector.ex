@@ -1,4 +1,4 @@
-def module EventualLeaderDetector do
+defmodule EventualLeaderDetector do
 
   def start(name, processes) do
     pid = spawn(EventualLeaderDetector, :init, [name processes])
