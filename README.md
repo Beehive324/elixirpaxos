@@ -1,6 +1,6 @@
 # Elixirpaxos
 
-**TODO: Add description**
+**Abortable Paxos Uniform Consensus Algorith Implementation using Elixir**
 
 ## Installation
 
