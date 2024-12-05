@@ -1,5 +1,6 @@
-Code.require('eventual_leader_detector.ex')
-Code.require('best_effort_broadcast.ex')
+Code.require('abstractions/eventual_leader_detector.ex')
+Code.require('abstractions/best_effort_broadcast.ex')
+
 
 defmodule Paxos do
   def start(name, participants) do
