@@ -1,9 +1,15 @@
-Code.require('best_effort_broadcast.ex')
-Code.require('Eventual_leader_detector.ex')
+
+"""
+epoch-change -> responsible for triggering the sequence of epochs
+at all processes.
+Epoch consensus abstraction, goal is to reach consensus in a given epoch
+implemented in a fail-noisy model, relying on an eventual leader detector
+leader ℓ0
+"""
 
 defmodule EpochChange do
-   def start(name, processes) do
-    pid = spawn(EpochChange, :init, [name processes])
+   def start(name, processes) do #start a process
+    pid = spawn(EpochChange, :init, [name, processes]) #spawning a processes
     case :global.re_register_name(name, pid) do
       :yes -> pid
       :no -> :error
@@ -12,17 +18,16 @@ defmodule EpochChange do
     pid
   end
 
-
   def init(name, processes) do
+    start_beb(name)
+    start_evl(name)
+
     state = %{
-    trusted: 0,
-    last: 0, #hashmap containing timestamp of the last epoch it started
-    lastts: 0, #
-    ts: 0,
     name: name,
     processes: processes,
-    ts: 0,
-    lastts: get_process_rank(name, processes)
+    trusted: nil,
+    lastts: 0,
+    ts: get_process_rank(name, processes)
     }
     run(state)
   end
@@ -57,47 +62,35 @@ defmodule EpochChange do
     Process.link(pid)
   end
 
-  defp evl() do
-    EventualLeaderDetector.evl(Process.whereis(get_evl_name()))
+  defp eventual_leader_detector(processes) do
+    EventualLeaderDetector.eventual_leader_detector(Process.whereis(get_evl_name()))
   end
-
-
 
   def run(state) do
     state = receive do
-      {:trust,{process} } ->
-      if trusted = p do
-        state = { state | state.ts + Enum.count(processes)}
-        beb_broadcast({processes}, ts)
+      {:trust, p} ->
+      state = %{state | trusted: p}
+      if p == self() do
+        state = %{state | ts: state.ts + Enum.count(state.processes)}
+        beb_broadcast({:new_epoch, state.ts}, state.processes)
         state
       end
-      #trusted :=p
-      #if p = self then
-      #ts := ts + N
-      #trigger <beb, Broadcast>
-        state
 
-      {:deliver, {l}} ->
-      state = if l == trusted and l = newts and newts > lastts do
-        lastts = newts
-        start_epoch(name, processes)
+      {:deliver, {:new_epoch, newts}} ->
+      state = if state.l == state.trusted and state.l == state.newts and state.newts > state.lastts do
+        state = %{state | lastss: state.newts}
+        start_epoch(state.name, state.processes)
         state
-
       end
-      self.send((l))
+
+      send(state.processes, {self(), state.l})
       state
 
+      {:check} ->
+      if state.trusted == self() do
+        state = %{ state | ts: state.ts + Enum.count(state.processes)}
+        beb_broadcast({:new_epoch, state.ts}, state.processes)
       end
-
-
-
-      {:deliver} ->
-      if trusted == self() do
-        state = { state | state.ts + Enum.count(processes)}
-        beb_broadcast(ts, newepoch)
-      end
-
-
     end
   end
 
@@ -105,12 +98,10 @@ defmodule EpochChange do
     Enum.find_index(processes, &(&1 == name)) || 0
   end
 
-
   defp start_epoch(name, processes) do
 
+    send(self(), {:epoch_started, name, processes})
+
   end
-
-
-
 
 end

@@ -7,13 +7,11 @@ defmodule PointLinks do
 
 
   def init(name, processes) do
-
     state =%{
     name: name,
     processes: processes,
     delivered: %MapSet{}
     }
-
     run(state)
   end
 

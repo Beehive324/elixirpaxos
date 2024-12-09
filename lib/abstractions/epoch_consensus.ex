@@ -1,6 +1,11 @@
 defmodule EpochConsensus do
 
 
+  """
+epoch consensus abstraction, whose goal
+is to reach consensus in a given epoch
+
+"""
   def start(name, processes) do
 
     pid = spawn(EpochConsensus,:init, [name, processes])
