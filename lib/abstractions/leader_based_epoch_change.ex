@@ -2,9 +2,8 @@
 """
 epoch-change -> responsible for triggering the sequence of epochs
 at all processes.
-Epoch consensus abstraction, goal is to reach consensus in a given epoch
-implemented in a fail-noisy model, relying on an eventual leader detector
-leader ℓ0
+
+Response: Starts epoch with timestamp ts and leader l
 """
 
 defmodule EpochChange do
@@ -83,7 +82,7 @@ defmodule EpochChange do
         state
       end
 
-      send(state.processes, {self(), state.l})
+      send(eventual_leader_detector(state.processes), {self(), state.l})
       state
 
       {:check} ->

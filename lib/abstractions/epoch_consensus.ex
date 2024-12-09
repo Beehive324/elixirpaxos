@@ -7,9 +7,7 @@ is to reach consensus in a given epoch
 
 """
   def start(name, processes) do
-
     pid = spawn(EpochConsensus,:init, [name, processes])
-
     case :global.re_register_name(name,pid) do
       :yes -> pid
       :no -> :error
@@ -22,8 +20,8 @@ is to reach consensus in a given epoch
   def init(name, processes) do
 
     state = %{
-
-    valts, val: 0,
+      val: 0,
+    valts: 0,
     tmpval: 0,
     states: 0,
     accepted: 0
