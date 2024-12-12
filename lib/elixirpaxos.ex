@@ -19,61 +19,6 @@ defmodule Paxos do
 
   """
 
-  def init(name, participants) do
-    state = %{
-    name: name,
-    participants: participants,
-    leader: leader,
-    proposer: proposer,
-    acceptor: %MapSet{},
-    learner: learner,
-    acceptors: [],
-    value: 0,
-
-    }
-    state
-    run(state)
-  end
-
-
-  def run(state) do
-
-    state = receive do
-
-      {:propose} ->
-      state
-
-      {:deliver} ->
-      beb_broacast(m, state.processes)
-      {:accept} ->
-      state
-
-      {:leader} ->
-      get_le_name(state.processes)
-      state
-
-
-    end
-
-  end
-
-  defp prepare() do
-    #generate unique proposal number
-    #sends a prepare request to all other nodes
-  end
-
-  defp propose(pid, inst, value, t) do
-    {:decision, v}
-
-    {:abort}
-    {:timeout}
-  end
-
-  defp get_decision(pid, inst, t) do
-
-
-  end
-
 
   #Implementing BestEffort BroadCast
 
@@ -112,6 +57,66 @@ defmodule Paxos do
   defp eventual_leader_election() do
     EventualLeaderElection.eventualleader(Process.whereis(get_le_name()))
   end
+
+
+  def init(name, participants) do
+    state = %{
+    name: name,
+    participants: participants,
+    leader: leader,
+    proposer: proposer,
+    acceptor: %MapSet{},
+    learner: learner,
+    acceptors: [],
+    value: 0,
+
+    }
+    state
+    run(state)
+  end
+
+
+  def run(state) do
+
+    state = receive do
+
+      {:propose} ->
+      value = value
+      state
+
+      {:deliver} ->
+      beb_broacast(m, state.processes)
+      {:accept} ->
+      state
+
+      {:leader} ->
+      get_le_name(state.processes)
+      state
+
+
+    end
+
+  end
+
+  defp prepare() do
+    #generate unique proposal number
+    #sends a prepare request to all other nodes
+  end
+
+  defp propose(pid, inst, value, t) do
+    {:decision, v} ->
+
+
+
+    {:abort}
+    {:timeout}
+  end
+
+  defp get_decision(pid, inst, t) do
+
+
+  end
+
 
 
 

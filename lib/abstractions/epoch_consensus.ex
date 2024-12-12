@@ -1,9 +1,13 @@
 defmodule EpochConsensus do
 
-
   """
 epoch consensus abstraction, whose goal
 is to reach consensus in a given epoch
+
+Module: EpochConsensus, instance ep , with timestamp ts and leader process l
+
+Events:
+    Requests: <Propose | v>
 
 """
   def start(name, processes) do
