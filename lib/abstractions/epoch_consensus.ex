@@ -8,8 +8,12 @@ Module: EpochConsensus, instance ep , with timestamp ts and leader process l
 
 Events:
     Requests: <Propose | v>
+    Request: <ep, Abort> : Aborts epoch consensus
+    Indication: <ep, Decide | v> Outputs a decided value v of epoch consensus
+    Indication: <ep, Aborted | state>: Signlas that epoch consensus has completed the abort and outputs internal state state
 
 """
+
   def start(name, processes) do
     pid = spawn(EpochConsensus,:init, [name, processes])
     case :global.re_register_name(name,pid) do
@@ -41,6 +45,7 @@ Events:
     state = receive do
 
       {:propose} ->
+
       state
 
       {:deliver} ->

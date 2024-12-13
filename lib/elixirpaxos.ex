@@ -11,10 +11,11 @@ defmodule Paxos do
     end
     IO.puts(if pid, do: "registered #{name}", else: "failed to register #{name}")
   end
+
   @moduledoc """
   Documentation for `Paxos`.
     Algorithm for solving consensus
-  group of machines with no leader, can we still arive at a single
+  group of machines with a leader, can we still arive at a single
     common consensus value
 
   """
@@ -49,17 +50,41 @@ defmodule Paxos do
 
   defp start_le(name) do
     Process.register(self(), name)
-    pid = spawn(EventualLeaderElection, :init, [])
+    pid = spawn(EventualLeaderDetector, :init, [])
     Process.register(pid, get_le_name())
     Process.link(pid)
   end
 
-  defp eventual_leader_election() do
-    EventualLeaderElection.eventualleader(Process.whereis(get_le_name()))
+  defp eventual_leader_detector() do
+    EventualLeaderDetector.eventual_leader_detector(Process.whereis(get_le_name()))
   end
 
+  defp propose(pid, inst, value, t) do
+    val = make_ref() #create unique reference number
+    send(pid, {:propose, self(), val, inst, value})
+    receive do
+      {:decision, ^ref, value} -> {:decision, value}
+      {:abort, ^ref} -> {:abort}
+    after
+    t -> {:timeout}
+    end
+  end
+
+  defp get_decision(pid, inst, t) do
+    val = make_ref()
+    send(pid, {:get_decision, self(), ref, inst})
+    receive do
+      {:decision, ^ref, value} -> value
+    after
+      t -> nil
+    end
+  end
 
   def init(name, participants) do
+    leader = EventualLeaderDetector.start(name, participants) #starts by assigning a leader
+    # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
+
+   #split between proposer and acceptor, n - 2
     state = %{
     name: name,
     participants: participants,
@@ -67,9 +92,11 @@ defmodule Paxos do
     proposer: proposer,
     acceptor: %MapSet{},
     learner: learner,
+    promises: 0,
     acceptors: [],
     value: 0,
-
+    value_set: %MapSet{},
+    round: 0, #round number
     }
     state
     run(state)
@@ -77,18 +104,17 @@ defmodule Paxos do
 
 
   def run(state) do
-
     state = receive do
-
       {:propose} ->
-      value = value
+      val = propose(state.name)
+      pre_req = {(val)}
+      self.send(pre_req, {state.name, state.participants})
       state
 
       {:deliver} ->
       beb_broacast(m, state.processes)
       {:accept} ->
       state
-
       {:leader} ->
       get_le_name(state.processes)
       state
@@ -98,24 +124,7 @@ defmodule Paxos do
 
   end
 
-  defp prepare() do
-    #generate unique proposal number
-    #sends a prepare request to all other nodes
-  end
 
-  defp propose(pid, inst, value, t) do
-    {:decision, v} ->
-
-
-
-    {:abort}
-    {:timeout}
-  end
-
-  defp get_decision(pid, inst, t) do
-
-
-  end
 
 
 
