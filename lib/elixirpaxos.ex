@@ -20,14 +20,11 @@ defmodule Paxos do
 
   """
 
-
-  #Implementing BestEffort BroadCast
-
+  #Implementing BestEffortBroadCast abstraction
   defp get_beb_name() do
     {:registered_name, parent} = Process.info(self(), :registered_name)
     String.to_atom(Atom.to_string(parent) <> "_beb")
   end
-
 
   defp start_beb(name) do
     Process.register(self(), name)
@@ -40,9 +37,7 @@ defmodule Paxos do
     BestEffortBroadcast.beb_broadcast(Process.whereis(get_beb_nme()), m, dest)
   end
 
-
-  #Implementing LeaderELection
-
+  #Implementing LeaderELection abstraction
   defp get_le_name() do
     {:registered_name, parent} = Process.info(self(), :registered_name)
     String.to_atom(Atom.to_string(parent) <> "_beb")
@@ -59,6 +54,7 @@ defmodule Paxos do
     EventualLeaderDetector.eventual_leader_detector(Process.whereis(get_le_name()))
   end
 
+  #prpose api
   defp propose(pid, inst, value, t) do
     val = make_ref() #create unique reference number
     send(pid, {:propose, self(), val, inst, value})
@@ -69,7 +65,7 @@ defmodule Paxos do
     t -> {:timeout}
     end
   end
-
+  #get_decision api
   defp get_decision(pid, inst, t) do
     val = make_ref()
     send(pid, {:get_decision, self(), ref, inst})
@@ -84,45 +80,75 @@ defmodule Paxos do
     leader = EventualLeaderDetector.start(name, participants) #starts by assigning a leader
     # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
 
-   #split between proposer and acceptor, n - 2
+    #split between proposer and acceptor, n - 2
     state = %{
     name: name,
     participants: participants,
-    leader: leader,
-    proposer: proposer,
-    acceptor: %MapSet{},
-    learner: learner,
-    promises: 0,
-    acceptors: [],
-    value: 0,
-    value_set: %MapSet{},
-    round: 0, #round number
+    bal: 0,
+    a_bal: 0,
+    a_val: 0,
+    v: 0
+
     }
     state
     run(state)
   end
 
-
   def run(state) do
     state = receive do
-      {:propose} ->
-      val = propose(state.name)
-      pre_req = {(val)}
-      self.send(pre_req, {state.name, state.participants})
+      #(1)
+      {:broadcast} ->
+      message = propose(self(), inst, value, t)
+      send(beb_broacast({:propose,message, state.participants}))
       state
 
-      {:deliver} ->
-      beb_broacast(m, state.processes)
-      {:accept} ->
-      state
-      {:leader} ->
-      get_le_name(state.processes)
+      #(2)
+      {:prepare, b} ->
+      if b > bal do
+        state = %{state | bal: state.bal = b}
+        send({:prepared, b, state.a_bal, state.a_val})
+        else
+        send({:nack, b})
+      end
       state
 
+      #(3)
+      {:quorom, {:prepared, b, a_bal, a_val}} ->
+      if a_val == nil do
+        state = %{state | v: state.v = 0}
+        state
+        else
+          state =  %{state | v: state.v = state.a_val}
+          state
+        end
+        beb_broacast({:accept, b, v})
+        state
+
+      state
+
+      #(4)
+      {:accept, {b, v}} ->
+      if b >= state.bal do
+        state = %{state | bal: state.bal = b}
+        state = %{state | a_bal: state.bal = b}
+        state = %{state | a_val: state.bal = v}
+        send(beb_broacast({:accepted, b}, state.participants))
+
+        else
+        send({:nack, b}, state.paricpants)
+      end
+      state
+      #(5)
+      {:accept_quorom} ->
+      state.v
+      state
+
+
+      end
 
     end
-
   end
+
 
 
 
