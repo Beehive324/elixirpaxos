@@ -20,14 +20,11 @@ defmodule Paxos do
 
   """
 
-
-  #Implementing BestEffort BroadCast
-
+  #Implementing BestEffortBroadCast abstraction
   defp get_beb_name() do
     {:registered_name, parent} = Process.info(self(), :registered_name)
     String.to_atom(Atom.to_string(parent) <> "_beb")
   end
-
 
   defp start_beb(name) do
     Process.register(self(), name)
@@ -40,9 +37,7 @@ defmodule Paxos do
     BestEffortBroadcast.beb_broadcast(Process.whereis(get_beb_nme()), m, dest)
   end
 
-
-  #Implementing LeaderELection
-
+  #Implementing LeaderELection abstraction
   defp get_le_name() do
     {:registered_name, parent} = Process.info(self(), :registered_name)
     String.to_atom(Atom.to_string(parent) <> "_beb")
@@ -59,6 +54,7 @@ defmodule Paxos do
     EventualLeaderDetector.eventual_leader_detector(Process.whereis(get_le_name()))
   end
 
+  #prpose api
   defp propose(pid, inst, value, t) do
     val = make_ref() #create unique reference number
     send(pid, {:propose, self(), val, inst, value})
@@ -69,7 +65,7 @@ defmodule Paxos do
     t -> {:timeout}
     end
   end
-
+  #get_decision api
   defp get_decision(pid, inst, t) do
     val = make_ref()
     send(pid, {:get_decision, self(), ref, inst})
@@ -87,16 +83,7 @@ defmodule Paxos do
    #split between proposer and acceptor, n - 2
     state = %{
     name: name,
-    participants: participants,
-    leader: leader,
-    proposer: proposer,
-    acceptor: %MapSet{},
-    learner: learner,
-    promises: 0,
-    acceptors: [],
-    value: 0,
-    value_set: %MapSet{},
-    round: 0, #round number
+    participants: participants
     }
     state
     run(state)
