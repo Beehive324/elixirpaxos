@@ -79,37 +79,56 @@ defmodule Paxos do
   def init(name, participants) do
     leader = EventualLeaderDetector.start(name, participants) #starts by assigning a leader
     # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
-
+    start_beb(name)
+    start_le(name)
     #split between proposer and acceptor, n - 2
     state = %{
     name: name,
     participants: participants,
-    bal: 0,
-    a_bal: 0,
-    a_val: 0,
-    v: 0
-
+    bal: 0, #ballot number
+    a_bal: 0, #accepted ballot number
+    a_val: 0, #accepted value
+    v: nil
     }
     state
     run(state)
   end
 
+  #Leader Based functions
+  #(1) Broadcast prepare
+  defp start_ballot(state, b, initial_value) do
+
+  end
+
+  #(3) upon quorom S of (prepared, b, a_bal, a_val
+  defp quorum_s(prepared, b, a_bal, a_val) do
+
+  end
+
+  defp quorom_accept(state, accepted, b) do
+
+  end
+
   def run(state) do
     state = receive do
       #(1)
-      {:broadcast} ->
-      message = propose(self(), inst, value, t)
-      send(beb_broacast({:propose,message, state.participants}))
+      {:broadcast, value} ->
+       message = propose(self(), state.inst, state.value)
+       beb_broacast({:propose, message}, state.participants)
+       state
+
       state
 
+
       #(2)
-      {:prepare, b} ->
-      if b > bal do
-        state = %{state | bal: state.bal = b}
-        send({:prepared, b, state.a_bal, state.a_val})
-        else
-        send({:nack, b})
-      end
+      {:prepare, b} when b > state.bal ->
+      send(state.sender, {:prepared, b, state.a_bal, state.a_val})
+      state = %{state | bal: b}
+      state
+
+      {:prepare, b} when b > state.bal ->
+      send(state.sender, {:prepared, b, state.a_bal, state.a_val})
+      state = %{state | bal: b}
       state
 
       #(3)
