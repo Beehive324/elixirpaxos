@@ -1,9 +1,10 @@
-Code.require('abstractions/eventual_leader_detector.ex')
-Code.require('abstractions/best_effort_broadcast.ex')
-
-
 defmodule Paxos do
-  def start(name, participants) do
+
+  import BestEffortBroadcast
+  import EventualLeaderDetector
+
+  #spwan each process
+  def start(name, paxos_proc) do
     pid = spawn(Paxos, :init, [name, paxos_proc])
     pid = case :global.re_register_name(name, pid) do
       :yes -> pid
@@ -13,10 +14,6 @@ defmodule Paxos do
   end
 
   @moduledoc """
-  Documentation for `Paxos`.
-    Algorithm for solving consensus
-  group of machines with a leader, can we still arive at a single
-    common consensus value
 
   """
 
@@ -34,7 +31,7 @@ defmodule Paxos do
   end
 
   defp beb_broacast(m, dest) do
-    BestEffortBroadcast.beb_broadcast(Process.whereis(get_beb_nme()), m, dest)
+    BestEffortBroadcast.beb_broadcast(Process.whereis(get_beb_name()), m, dest)
   end
 
   #Implementing LeaderELection abstraction
@@ -54,37 +51,40 @@ defmodule Paxos do
     EventualLeaderDetector.eventual_leader_detector(Process.whereis(get_le_name()))
   end
 
-  #prpose api
-  defp propose(pid, inst, value, t) do
-    val = make_ref() #create unique reference number
-    send(pid, {:propose, self(), val, inst, value})
+  #Two steps in paxos: propose, accept
+
+  #allows processes to propose values
+  def propose(pid, inst, value, t) do
+    Process.send({:propose, inst, value})
     receive do
-      {:decision, ^ref, value} -> {:decision, value}
-      {:abort, ^ref} -> {:abort}
+      {:decision, value} -> {:decision, value}
+      {:abort, value} -> {:abort}
     after
     t -> {:timeout}
     end
   end
+
   #get_decision api
-  defp get_decision(pid, inst, t) do
-    val = make_ref()
-    send(pid, {:get_decision, self(), ref, inst})
+  def get_decision(pid, inst, t) do
+    send(pid, {:get_decision, self(),inst})
     receive do
-      {:decision, ^ref, value} -> value
+      {:decision, val, value} -> value
     after
       t -> nil
     end
   end
 
   def init(name, participants) do
-    leader = EventualLeaderDetector.start(name, participants) #starts by assigning a leader
     # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
     start_beb(name)
-    start_le(name)
     #split between proposer and acceptor, n - 2
     state = %{
     name: name,
     participants: participants,
+    proposals: %MapSet{}, #proposal num, value
+    proposal_number: 0,
+    proposal_value: 0,
+    quorom: 0,
     bal: 0, #ballot number
     a_bal: 0, #accepted ballot number
     a_val: 0, #accepted value
@@ -96,72 +96,68 @@ defmodule Paxos do
 
   #Leader Based functions
   #(1) Broadcast prepare
-  defp start_ballot(state, b, initial_value) do
-
-  end
-
-  #(3) upon quorom S of (prepared, b, a_bal, a_val
-  defp quorum_s(prepared, b, a_bal, a_val) do
-
-  end
-
-  defp quorom_accept(state, accepted, b) do
-
-  end
-
   def run(state) do
     state = receive do
-      #(1)
-      {:broadcast, value} ->
-       message = propose(self(), state.inst, state.value)
-       beb_broacast({:propose, message}, state.participants)
-       state
+      #Proposer Logic
+      #Phase 1. (a)
+      {:broadcast, value, t} ->
+       prepare_req = propose(self(), state.inst, state.value, t) #start by proposing a message
+       beb_broacast({:propose, prepare_req}, state.participants) #send this message to other aceptors
+       state =  %{state | prposal_number: proposal_number + 1} #increase proposal number
+       proposal = {proposal_number, proposal_value} #establish new proposl number
+       state = %{state | proposal: Map.put(state.proposals, ({proposal_number, proposal_value}))} # add it to the map
+       state = %{state | bal: proposal_number}
+       state #call state
 
       state
 
+      #Promise (Phase 1a)
+      {:prepare, b} ->
+       state = if b > state.bal do
+        state = %{state | bal: b}
+        send(state.sender, {:prepared, b, state.a_bal, state.a_val})
+       else
+        send({:nack}, b)
 
-      #(2)
-      {:prepare, b} when b > state.bal ->
-      send(state.sender, {:prepared, b, state.a_bal, state.a_val})
-      state = %{state | bal: b}
+       end
+
       state
-
+      #Acceptor Logic
       {:prepare, b} when b > state.bal ->
       send(state.sender, {:prepared, b, state.a_bal, state.a_val})
       state = %{state | bal: b}
       state
 
       #(3)
-      {:quorom, {:prepared, b, a_bal, a_val}} ->
+      {:quorom, {:prepared, b, a_bal, a_val, v}} ->
       if a_val == nil do
-        state = %{state | v: state.v = 0}
+        state = %{state | v: 0}
         state
         else
-          state =  %{state | v: state.v = state.a_val}
+          state =  %{state | v: a_val}
           state
         end
-        beb_broacast({:accept, b, v})
+        beb_broacast({:accept, b, v}, state.participants)
         state
 
       state
 
-      #(4)
+      #Accept (Phase 2)
       {:accept, {b, v}} ->
       if b >= state.bal do
-        state = %{state | bal: state.bal = b}
-        state = %{state | a_bal: state.bal = b}
-        state = %{state | a_val: state.bal = v}
-        send(beb_broacast({:accepted, b}, state.participants))
+        state = %{state | bal:  b}
+        state = %{state | a_bal: b}
+        state = %{state | a_val: v}
+        beb_broacast({:accepted, b}, state.participants)
 
         else
-        send({:nack, b}, state.paricpants)
+        send({:nack, b}, state.participants)
       end
       state
-      #(5)
+      #Learning (Phase 3)
       {:accept_quorom} ->
       state.v
       state
-
 
       end
 
@@ -176,4 +172,3 @@ defmodule Paxos do
 
 
 
-end

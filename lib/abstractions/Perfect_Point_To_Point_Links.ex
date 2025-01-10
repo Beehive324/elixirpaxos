@@ -1,35 +1,32 @@
 defmodule PointLinks do
-
-  def start(name, processes) do
-    pid = spawn(PointLinks, :init, [name, processes])
-    pid
-  end
-
-
   def init(name, processes) do
-    state =%{
-    name: name,
-    processes: processes,
-    delivered: %MapSet{}
-    }
-    run(state)
+    Process.register(self(), name)
+    run(%{
+      processes: processes,
+      delivered: MapSet.new()
+    })
   end
 
-   def run(state) do
+  def send_message(pid, q, m) do
+    send(pid, {:send, q, m})
+  end
 
-    state = receive do
-      {:send, {q, m}} ->
-        self.send(q, {:deliver, {self(), m}})
+  defp run(state) do
+    new_state = receive do
+      {:send, q, m} ->
+        send(q, {:deliver, {self(), m}})
         state
 
-        {:deliver, {p, m}} ->
-        state = if m not in state.delivered do
-          state = %{state | delivered: MapSet.put(state.delivered, m)}
-          self.send({p, m})
+      {:deliver, {p, m}} = message ->
+        if not MapSet.member?(state.delivered, message) do
+          new_state = %{state | delivered: MapSet.put(state.delivered, message)}
+          send(self(), {p, m})
+          new_state
+        else
+          state
         end
-
-        state
     end
-end
 
+    run(new_state)
+  end
 end
