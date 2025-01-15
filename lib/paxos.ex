@@ -76,6 +76,7 @@ defmodule Paxos do
 
   def init(name, participants) do
     # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
+    #elect a leader in a ballot
     start_beb(name)
     #split between proposer and acceptor, n - 2
     state = %{
@@ -88,7 +89,8 @@ defmodule Paxos do
     bal: 0, #ballot number
     a_bal: 0, #accepted ballot number
     a_val: 0, #accepted value
-    v: nil
+    v: nil,
+    decision: %{} #map for all decisions that have been made
     }
     state
     run(state)
@@ -99,6 +101,7 @@ defmodule Paxos do
   def run(state) do
     state = receive do
       #Proposer Logic
+      #Leader of ballot bo0 broadcast a value to all processes
       #Phase 1. (a)
       {:broadcast, value, t} ->
        prepare_req = propose(self(), state.inst, state.value, t) #start by proposing a message
@@ -108,7 +111,6 @@ defmodule Paxos do
        state = %{state | proposal: Map.put(state.proposals, ({proposal_number, proposal_value}))} # add it to the map
        state = %{state | bal: proposal_number}
        state #call state
-
       state
 
       #Promise (Phase 1a)

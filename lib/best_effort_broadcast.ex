@@ -21,14 +21,13 @@ defmodule BestEffortBroadcast do
   def beb_broadcast(state) do
     state = receive do
       {:broadcast, m} ->
-        send(state.processes, m)
+        if m not in state.delivered do
+          send(state.processes, m)
+        end
         state
       {:deliver, m} ->
       state
-
     end
 
-
-    end
-
-    end
+  end
+end
