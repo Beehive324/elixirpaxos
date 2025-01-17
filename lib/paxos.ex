@@ -1,8 +1,5 @@
 defmodule Paxos do
 
-  import BestEffortBroadcast
-  import EventualLeaderDetector
-
   #spwan each process
   def start(name, paxos_proc) do
     pid = spawn(Paxos, :init, [name, paxos_proc])
@@ -14,7 +11,6 @@ defmodule Paxos do
   end
 
   @moduledoc """
-
   """
 
   #Implementing BestEffortBroadCast abstraction
@@ -30,7 +26,7 @@ defmodule Paxos do
     Process.link(pid)
   end
 
-  defp beb_broacast(m, dest) do
+  defp beb_broadcast(m, dest) do
     BestEffortBroadcast.beb_broadcast(Process.whereis(get_beb_name()), m, dest)
   end
 
@@ -55,7 +51,7 @@ defmodule Paxos do
 
   #allows processes to propose values
   def propose(pid, inst, value, t) do
-    Process.send({:propose, inst, value})
+    send(pid, {:propose, inst, {:val, value}})
     receive do
       {:decision, value} -> {:decision, value}
       {:abort, value} -> {:abort}
@@ -76,11 +72,11 @@ defmodule Paxos do
 
   def init(name, participants) do
     # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
-    #elect a leader in a ballot
     start_beb(name)
     #split between proposer and acceptor, n - 2
     state = %{
     name: name,
+    inst: nil,
     participants: participants,
     proposals: %MapSet{}, #proposal num, value
     proposal_number: 0,
@@ -89,8 +85,7 @@ defmodule Paxos do
     bal: 0, #ballot number
     a_bal: 0, #accepted ballot number
     a_val: 0, #accepted value
-    v: nil,
-    decision: %{} #map for all decisions that have been made
+    v: nil
     }
     state
     run(state)
@@ -101,16 +96,16 @@ defmodule Paxos do
   def run(state) do
     state = receive do
       #Proposer Logic
-      #Leader of ballot bo0 broadcast a value to all processes
       #Phase 1. (a)
       {:broadcast, value, t} ->
        prepare_req = propose(self(), state.inst, state.value, t) #start by proposing a message
-       beb_broacast({:propose, prepare_req}, state.participants) #send this message to other aceptors
-       state =  %{state | prposal_number: proposal_number + 1} #increase proposal number
-       proposal = {proposal_number, proposal_value} #establish new proposl number
-       state = %{state | proposal: Map.put(state.proposals, ({proposal_number, proposal_value}))} # add it to the map
-       state = %{state | bal: proposal_number}
+       beb_broadcast({:propose, prepare_req}, state.participants) #send this message to other aceptors
+       state =  %{state | proposal_number: state.proposal_number + 1} #increase proposal number
+       proposal = {state.proposal_number, state.proposal_value} #establish new proposl number
+       state = %{state | proposal: Map.put(state.proposals, ({state.proposal_number, state.proposal_value}))} # add it to the map
+       state = %{state | bal: state.proposal_number}
        state #call state
+
       state
 
       #Promise (Phase 1a)
@@ -122,12 +117,11 @@ defmodule Paxos do
         send({:nack}, b)
 
        end
-
       state
       #Acceptor Logic
       {:prepare, b} when b > state.bal ->
       send(state.sender, {:prepared, b, state.a_bal, state.a_val})
-      state = %{state | bal: b}
+      state = %{state | bal: state.b}
       state
 
       #(3)
@@ -139,7 +133,7 @@ defmodule Paxos do
           state =  %{state | v: a_val}
           state
         end
-        beb_broacast({:accept, b, v}, state.participants)
+        beb_broadcast({:accept, state.b, state.v}, state.participants)
         state
 
       state
@@ -150,7 +144,7 @@ defmodule Paxos do
         state = %{state | bal:  b}
         state = %{state | a_bal: b}
         state = %{state | a_val: v}
-        beb_broacast({:accepted, b}, state.participants)
+        beb_broadcast({:accepted, b}, state.participants)
 
         else
         send({:nack, b}, state.participants)
@@ -165,7 +159,6 @@ defmodule Paxos do
 
     end
   end
-
 
 
 

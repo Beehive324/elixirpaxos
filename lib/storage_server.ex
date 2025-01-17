@@ -1,5 +1,4 @@
 defmodule StorageServer do
-
     def start(name, paxos_proc) do
         pid = spawn(StorageServer, :init, [name, paxos_proc])
         pid = case :global.re_register_name(name, pid) do

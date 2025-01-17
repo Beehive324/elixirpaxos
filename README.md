@@ -17,7 +17,26 @@ end
 
 
 
- 
+## Distributed Database Service
+Goal: ensures that all replicas of the database agree on the order of updates
+
+## Safety and Liveness properties
+
+## Usage
+
+## Assumptions
+
+## testing
+
+```bash
+cd test
+```
+
+```bash
+iex test_script.exs
+```
+
+
 
 
 
