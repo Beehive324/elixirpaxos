@@ -17,17 +17,17 @@ end
 
 
 ## Testing
-1. Go into the test folder directory
+1. Go into the test folder directory:
 ```bash
 cd test
 ```
 
-2. Start Erlang port mapper
+2. Start Erlang port mapper:
 ```bash
 epmd -daemon
 ```
 
-3. Run Tests using the following command
+3. Run Tests using the following command:
 ```bash
 iex test_script.exs
 ```
