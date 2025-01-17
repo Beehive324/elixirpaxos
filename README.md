@@ -16,16 +16,6 @@ end
 ```
 
 
-
-## Distributed Database Service
-Goal: ensures that all replicas of the database agree on the order of updates
-
-## Safety and Liveness properties
-
-## Usage
-
-## Assumptions
-
 ## Testing
 1. Go into the test folder directory
 ```bash
