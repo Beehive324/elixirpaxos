@@ -26,12 +26,18 @@ Goal: ensures that all replicas of the database agree on the order of updates
 
 ## Assumptions
 
-## testing
-
+## Testing
+1. Go into the test folder directory
 ```bash
 cd test
 ```
 
+2. Start Erlang port mapper
+```bash
+epmd -daemon
+```
+
+3. Run Tests using the following command
 ```bash
 iex test_script.exs
 ```
