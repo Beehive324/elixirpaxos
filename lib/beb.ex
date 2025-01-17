@@ -1,5 +1,7 @@
-defmodule BestEffortBroadcast do
+#Code.require_file("/Users/constanciasoares/elixirpaxos/lib/best_effort_broadcast.ex")
 
+
+defmodule BestEffortBroadcast do
   def start(name, processes) do
     pid = spawn(BestEffortBroadcast, :init, [name ,processes])
     case :global.re_register_name(name, pid) do
@@ -10,9 +12,10 @@ defmodule BestEffortBroadcast do
     pid
   end
 
-  def init() do
+  def init(name, processes) do
     state = %{
-    delivered: %MapSet{}
+    delivered: %MapSet{},
+    processes: processes
     }
     beb_broadcast(state)
   end

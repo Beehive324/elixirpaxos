@@ -19,7 +19,6 @@ defmodule EventualLeaderDetector do
     run(state)
   end
 
-
   def run(state) do
     state = receive do
       {:suspect, proc} ->
