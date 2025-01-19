@@ -82,7 +82,7 @@ defmodule Paxos do
     proposal_value: 0,
     decisions: 0,
     promises: nil, #have a map to store promises
-    quorom_size: nil,
+    quorum_size: nil,
     bal: 0, #indicates which round of paxos, increment every time theres is a new round of paxos
     a_bal: 0, #accepted ballot number
     a_val: 0, #accepted value
@@ -98,28 +98,33 @@ defmodule Paxos do
   #list
 
   #receive promises
-  def receivePromises(0, list), do: list
-  def receivePromises(n, list) when n > 0 do
+  def receivePromises(0, list) , do: list
+  def receivePromises(n, list) when n>0 do
     receive do
       {:promiseOk, tStore, cmd, pid} ->
-        receivePromises(n-1, [{tStore, cmd, pop} |list])
+        receivePromises(n-1, [{tStore, cmd, pid} |list])
     after
+      # wait for 1s
       1_000 ->
-          receivePromises(n-1, list)
-       end
+        receivePromises(n-1, list)
     end
+  end
 
   #receive proposals
-  def receiveProposals(0, acc), do: acc
-  def receiveProposals(n, acc \\0) when n > 0 do
+  def receiveProposals(0, acc) , do: acc
+  def receiveProposals(n, acc\\0) when n>0 do
     receive do
       :proposalSuccess ->
-      receiveProposals(n-1, acc+ 1)
-    end
+        # proposerSay "Received 'ProposalSuccess'"
+        receiveProposals(n-1, acc+1)
     after
-        1_000 ->
-           receiveProposals
+      # wait for 1s
+      1_000 ->
+        # proposerSay "Proposal didn't come"
+        receiveProposals(n-1, acc)
+    end
   end
+
   #Leader Based functions
   #(1) Broadcast prepare
   def run(state) do
@@ -143,7 +148,7 @@ defmodule Paxos do
 
 
         #checks if a proposer receive requests from a majority
-        if length(state.promises) <= a / 2 do
+        if length(state.promises) <= state.quorum_size / 2 do
           propose(self(), state.inst, state.value, t)
         end
         state
