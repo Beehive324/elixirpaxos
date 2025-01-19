@@ -1,4 +1,3 @@
-
 defmodule PaxosTest do
     # The functions implement 
     # the module specific testing logic

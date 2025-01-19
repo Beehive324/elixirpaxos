@@ -1,5 +1,3 @@
-Code.require_file("/Users/constanciasoares/elixirpaxos/lib/paxos.ex")
-
 defmodule TestHarness do
 
     # @compile :nowarn_unused_vars

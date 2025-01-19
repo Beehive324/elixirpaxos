@@ -1,5 +1,3 @@
-Code.require_file("/Users/constanciasoares/elixirpaxos/lib/paxos.ex")
-
 defmodule UUID do
   use Bitwise, only_operators: true
   @moduledoc """

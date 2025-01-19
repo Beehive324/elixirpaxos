@@ -1,5 +1,3 @@
-Code.require_file("/Users/constanciasoares/elixirpaxos/lib/paxos.ex")
-
 defmodule TestUtil do
     
     def get_node(host), do: String.to_atom(UUID.uuid1 <> "@" <> host) 
