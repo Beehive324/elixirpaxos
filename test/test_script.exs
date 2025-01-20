@@ -2,6 +2,7 @@
 # Replace with your own implementation source files
 IEx.Helpers.c "/Users/constanciasoares/elixirpaxos/lib/beb.ex", "."
 IEx.Helpers.c "/Users/constanciasoares/elixirpaxos/lib/paxos.ex", "."
+IEx.Helpers.c "/Users/constanciasoares/elixirpaxos/lib/eld.ex", "."
 
 # Do not modify the following ##########
 IEx.Helpers.c "test_harness.ex", "."
