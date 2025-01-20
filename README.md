@@ -17,6 +17,7 @@ end
 
 ## Safety and Liveness Properties
 Safety Property:
+
 Only a value that has been proposed may be chosen
 Only a single value is chosen
 A process never learns that a value has been chosen unless it has been chosen
