@@ -15,6 +15,19 @@ def deps do
 end
 ```
 
+## Safety and Liveness Properties
+Safety Property:
+Only a value that has been proposed may be chosen
+Only a single value is chosen
+A process never learns that a value has been chosen unless it has been chosen
+
+Liveness Property:
+
+Some proposed value is eventually chosen
+
+
+
+
 ## Usage (using mix)
 1. To run the project cd into lib:
 ```bash
@@ -29,7 +42,7 @@ mix compile
 ```bash
 iex
 ```
-2. Compile all your files:
+2. Compile the following files:
 ```bash
 c "paxos.ex"
 
