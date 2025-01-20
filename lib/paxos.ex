@@ -25,6 +25,8 @@ end
 
 
   @moduledoc """
+  Paxos Implementation for Solving Consensus
+  Every process acts as a acceptor, learner and proposer
   """
 
   #Implementing BestEffortBroadCast abstraction
@@ -57,14 +59,31 @@ end
 
   defp start_le(name, processes) do
     eld_name = String.to_atom("#{name}_eld")
+
+    if Process.whereis(eld_name) do
+      IO.puts("Process #{inspect(eld_name)} already registered")
+      Process.unregistered(eld_name)
+    end
+
     pid = spawn(EventualLeaderDetector, :init, [name, processes])
+
     Process.register(pid, eld_name)
     Process.link(pid)
+
   end
 
   def leader_detector(processes) do
-    EventualLeaderDetector.determine_leader(Process.whereis(get_le_name(), processes))
+  case EventualLeaderDetector.determine_leader(processes) do
+    nil ->
+      IO.puts("No leader could be determined.")
+      nil
+
+    leader ->
+      IO.puts("The current leader is: #{leader}")
+      leader
   end
+end
+
 
   #Two steps in paxos: propose, accept
   #allows processes to propose values
@@ -91,8 +110,11 @@ end
 
   #  { ProcessID : ( proposal_num , proposal_val ) }
   def init(name, participants) do
-    # needs to maintain a majoriy quorom to complete a round (n / 2 + 1) to
+    #start beb brodcast
     start_beb(name, participants)
+
+    #start leader detector
+    start_le(name, participants)
     #split between proposer and acceptor, n - 2
     state = %{
     name: name, # { prepare request: (1, proceess_id) }
@@ -156,6 +178,7 @@ end
 
         if decision != nil do
           send(state.participants, decision)
+          state
         end
 
       # Prepare Phase
@@ -172,11 +195,13 @@ end
         quorom_size: div(length(state.participants), 2) + 1,
         proposals: MapSet.put(state.proposals, proposal)
         }
+        state
 
         promises = receivePromises(state.quorum_size, []) #p promises
         state = %{state | promises: promises}
+        state
         # If the proposer receives the requested responses  from a majority of acceptors
-		    if length(state.promises) > div(state.quorum_size, 2)  do
+		    if length(state.promises) >= div(state.quorum_size, 2)  do
           max_promise = Enum.max_by(state.promises, fn {a_bal, _a_val, _pid} -> a_bal end, fn -> {0, nil, nil} end)
           IO.puts("#{max_promise}")
           {highest_a_bal, highest_a_val, _pid} = max_promise
