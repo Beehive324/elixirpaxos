@@ -33,7 +33,6 @@ test_suite = [
     {&PaxosTest.run_simple_many_1/3, TestUtil.get_local_config(5), 10, "No failures, many concurrent ballots 1, 5 local procs"},
 
 
-
     {&PaxosTest.run_simple_many_2/3, TestUtil.get_dist_config(host, 5), 10, "No failures, many concurrent ballots 2, 5 nodes"},
     {&PaxosTest.run_simple_many_2/3, TestUtil.get_local_config(5), 10, "No failures, many concurrent ballots 2, 5 local procs"},
 

@@ -172,89 +172,78 @@ end
   #Leader Based functions
   #(1) Broadcast prepare
   def run(state) do
+  receive do
+    # Prepare Phase
+    {:prepare, value, t} ->
+      leader = EventualLeaderDetector.determine_leader(Process.whereis(String.to_atom("#{state.name}_eld")))
 
-      # Prepare Phase
-      {:prepare, value, t} ->
-        #assign a leader
-        leader = EventualLeaderDetector.determine_leader(Process.whereis(String.to_atom("#{state.name}_eld")))
+      if state.name == leader do
+        prepare_req = {self(), state.proposal_number}
+        beb_broadcast({:prepare, prepare_req}, state.participants)
 
-        if state.name == leader do
-          prepare_req = {self(), state.proposal_number}
+        proposal = {state.proposal_number, state.proposal_value}
+        state = %{state |
+          prep_requests: MapSet.put(state.prep_requests, prepare_req),
+          proposal_number: state.proposal_number + 1,
+          bal: state.proposal_number + 1,
+          proposal_value: value,
+          quorom_size: div(length(state.participants), 2) + 1,
+          proposals: MapSet.put(state.proposals, proposal)
+        }
 
-          beb_broadcast({:prepare, prepare_req}, state.participants) # m , dest
-          proposal = {state.proposal_number, state.proposal_value}
+        promises = receivePromises(state.quorom_size, [])
+        state = %{state | promises: promises}
 
-          state = %{ state |
-            prep_requests: MapSet.put(state.prep_requests, prepare_req), #store prepare request
-            proposal_number: state.proposal_number + 1,
-            bal: state.proposal_number + 1,
-            proposal_value: value,
-            quorom_size: div(length(state.participants), 2) + 1,
-            proposals: MapSet.put(state.proposals, proposal)
-          }
-
-          state
-          promises = receivePromises(state.quorum_size, []) #p promises
-          state = %{state | promises: promises}
-          state
-          if length(state.promises) >= div(state.quorum_size, 2)  do
-            max_promise = Enum.max_by(state.promises, fn {a_bal, _a_val, _pid} -> a_bal end, fn -> {0, nil, nil} end)
-            IO.puts("#{max_promise}")
-            {highest_a_bal, highest_a_val, _pid} = max_promise
-            new_value =
-              if highest_a_val == nil do
-                state.proposal_value
-                val =propose(self(), state.inst, state.proposal_value, state.t)
-                beb_broadcast({:accept, val}, state.participants) # send accept request
+        if length(state.promises) >= div(state.quorom_size, 2) do
+          max_promise = Enum.max_by(state.promises, fn {a_bal, _a_val, _pid} -> a_bal end, fn -> {0, nil, nil} end)
+          {highest_a_bal, highest_a_val, _pid} = max_promise
+          new_value =
+            if highest_a_val == nil do
+              state.proposal_value
             else
-              highest_a_val #return highest_val
-              val = propose(self(), state.inst, highest_a_val, state.t)
-              beb_broadcast({:accept, val}, state.participants) #send accept request
-              end
-            state = %{state | proposal_value: new_value}
-            IO.puts("Quorum reached. Selected value: #{new_value}")
-          else
-            state = %{state | proposal_number: state.proposal_number + 1, bal: state.proposal_number + 1}
-            IO.puts("Quorum not reached. Retrying...")
-          end
-          state
-          state = %{ state | proposal_number: state.proposal_number,proposal_value: state.proposal_value,
-            proposals: MapSet.put(state.proposals, {state.proposal_number, state.proposal_value})}
-          beb_broadcast({:accept, {state.proposal_number, state.proposal_value}}, state.participants)
-        end
+              highest_a_val
+            end
 
-      # Accept Phae
-      #(3)
-      {:quorom, {:prepared, b, a_bal, a_val, v}} ->
-        if a_val == nil do
-          # Default value if no value has been accepted
-          state = %{state | v: 0}
+          state = %{state | proposal_value: new_value}
+          IO.puts("Quorum reached. Selected value: #{new_value}")
         else
-          # Use the accepted value
-          state = %{state | v: a_val}
+          state = %{state | proposal_number: state.proposal_number + 1, bal: state.proposal_number + 1}
+          IO.puts("Quorum not reached. Retrying...")
         end
-        # Broadcast the accept message
-        beb_broadcast({:accept, state.b, state.v}, state.participants)
-        state
 
-      # Accept (Phase 2)
-      {:accept, {b, v}} ->
-        if b >= state.bal do
-          # Update state with the accepted ballot and value
-          state = %{state | bal: b, a_bal: b, a_val: v}
-          beb_broadcast({:accepted, b}, state.participants)
-        else
-          # Send nack if ballot number is less than state.bal
-          send({:nack, b}, state.participants)
-        end
-        state
+        state = %{state |
+          proposals: MapSet.put(state.proposals, {state.proposal_number, state.proposal_value})
+        }
 
-      # Learning (Phase 3)
-      {:accept_quorom, pid, inst, val} ->
-        decision = get_decision(pid, inst, val)
-        state = %{state | a_val: decision}
-        state.v
-        state
-    end
+        beb_broadcast({:accept, {state.proposal_number, state.proposal_value}}, state.participants)
+      end
+
+    # Accept Phase
+    {:quorom, {:prepared, b, a_bal, a_val, v}} ->
+      if a_val == nil do
+        state = %{state | v: 0}
+      else
+        state = %{state | v: a_val}
+      end
+
+      beb_broadcast({:accept, state.b, state.v}, state.participants)
+
+    {:accept, {b, v}} ->
+      if b >= state.bal do
+        state = %{state | bal: b, a_bal: b, a_val: v}
+        beb_broadcast({:accepted, b}, state.participants)
+      else
+        send({:nack, b}, state.participants)
+      end
+
+    {:accept_quorom, pid, inst, val} ->
+      decision = get_decision(pid, inst, val)
+      state = %{state | a_val: decision}
+      IO.puts("Final decision value: #{state.v}")
   end
+
+  run(state) # Keep the process alive by recursively calling `run/1`.
 end
+
+end
+
