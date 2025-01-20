@@ -2,13 +2,26 @@ defmodule Paxos do
 
   #spwan each processc
   def start(name, paxos_proc) do
-    pid = spawn(Paxos, :init, [name, paxos_proc])
-    pid = case :global.re_register_name(name, pid) do
-      :yes -> pid
-      :no -> nil
-    end
-    IO.puts(if pid, do: "registered #{name}", else: "failed to register #{name}")
+  # Unregister if the process name is already taken
+  if Process.whereis(name) do
+    IO.puts("Process #{inspect(name)} already exists. Unregistering...")
+    Process.unregister(name)
   end
+
+  # Spawn and register the process
+  pid = spawn(Paxos, :init, [name, paxos_proc])
+
+  case :global.re_register_name(name, pid) do
+    :yes ->
+      IO.puts("Registered #{name} globally.")
+      pid
+
+    :no ->
+      IO.puts("Failed to register #{name} globally. Name already in use.")
+      nil
+  end
+end
+
 
 
   @moduledoc """
@@ -21,9 +34,14 @@ defmodule Paxos do
   end
 
   def start_beb(name, participants) do
+    beb_name = String.to_atom("#{name}_beb")
+    if Process.whereis(beb_name) do
+      IO.puts("Process #{inspect(beb_name)} already registered. Unregistering...")
+      Process.unregister(beb_name)
+    end
     Process.register(self(), name)
     pid = spawn(BestEffortBroadcast, :init, [name, participants])
-    Process.register(pid, get_beb_name())
+    Process.register(pid, beb_name)
     Process.link(pid)
   end
 
@@ -38,9 +56,9 @@ defmodule Paxos do
   end
 
   defp start_le(name, processes) do
-    Process.register(self(), name)
+    eld_name = String.to_atom("#{name}_eld")
     pid = spawn(EventualLeaderDetector, :init, [name, processes])
-    Process.register(pid, get_le_name())
+    Process.register(pid, eld_name)
     Process.link(pid)
   end
 
@@ -49,7 +67,6 @@ defmodule Paxos do
   end
 
   #Two steps in paxos: propose, accept
-
   #allows processes to propose values
   def propose(pid, inst, value, t) do
     send(pid, {:propose, inst, {:val, value}})
@@ -82,8 +99,9 @@ defmodule Paxos do
     inst: nil,
     sender: nil,
     participants: participants,
+    prep_requests: %MapSet{}, #store prepare requests
     proposals: %MapSet{}, #proposal num, value
-    proposal_number: 0,
+    proposal_number: 1,
     proposal_value: 0,
     decisions: %MapSet{},
     promises: nil, #have a map to store promises
@@ -133,29 +151,44 @@ defmodule Paxos do
   #(1) Broadcast prepare
   def run(state) do
     state = receive do
+      {:get_decision} ->
+        decision = Map.get(state.decisions)
+
+        if decision != nil do
+          send(state.participants, decision)
+        end
+
       # Prepare Phase
       {:prepare, value, t} ->
         #send prepare message
-        prepare_req = propose(self(), state.inst, state.value, t)         #store prepare requests         # Start by proposing a message
-        beb_broadcast({:propose, prepare_req}, state.participants)        # Send this message to other acceptors
-        state = %{state | proposal_number: state.proposal_number + 1}# Increase proposal number
-        proposal = {state.proposal_number, state.proposal_value}          # Establish new proposal number
-        state = %{state | proposals: Map.put(state.proposals, proposal)}  # Add it to the map
-        state = %{state | bal: state.proposal_number} #assing proposal_number to ballot
-        state = %{state | quorom_size: length(state.participants) } #gets the quorom size
+        prepare_req = {self(), state.proposal_number}
+        beb_broadcast({:prepare, prepare_req}, state.participants) # m , dest
+        proposal = {state.proposal_number, state.proposal_value}
+        state = %{ state |
+        prep_requests: MapSet.put(state.prep_requests, prepare_req), #store prepare request
+        proposal_number: state.proposal_number + 1,
+        bal: state.proposal_number + 1,
+        proposal_value: value,
+        quorom_size: div(length(state.participants), 2) + 1,
+        proposals: MapSet.put(state.proposals, proposal)
+        }
+
         promises = receivePromises(state.quorum_size, []) #p promises
         state = %{state | promises: promises}
-
-        #checks if a proposer receive requests from a majority
-		    if length(state.promises) > div(state.quorum_size, 2) do
+        # If the proposer receives the requested responses  from a majority of acceptors
+		    if length(state.promises) > div(state.quorum_size, 2)  do
           max_promise = Enum.max_by(state.promises, fn {a_bal, _a_val, _pid} -> a_bal end, fn -> {0, nil, nil} end)
           IO.puts("#{max_promise}")
           {highest_a_bal, highest_a_val, _pid} = max_promise
           new_value =
             if highest_a_val == nil do
               state.proposal_value
+              #propose(self(), state.inst, state.proposal_value, state.t)
+              #val = beb_broadcast({:accept, val}, state.participants) # send accept request
             else
-              highest_a_val
+              highest_a_val #return highest_val
+              #val = propose(self(), state.inst, highest_a_val, state.t)
+              #beb_broadcast({:accept, val}, state.participants) #send accept request
             end
           state = %{state | proposal_value: new_value}
           IO.puts("Quorum reached. Selected value: #{new_value}")
@@ -165,16 +198,12 @@ defmodule Paxos do
         end
         state
 
-      {:propose, b} when b > state.bal ->
-        send(state.sender, {:prepared, b, state.a_bal, state.a_val})
+        state = %{ state | proposal_number: state.proposal_number,proposal_value: state.proposal_value,
+          proposals: MapSet.put(state.proposals, {state.proposal_number, state.proposal_value})}
 
-        # Tracking the sender and logging the response
-        state = %{state | sender: self()}
-        IO.puts("Prepared message sent for ballot #{b}")
+        beb_broadcast({:accept, {state.proposal_number, state.proposal_value}}, state.participants)
 
 
-        # Update ballot number
-        %{state | bal: b}
 
 
 

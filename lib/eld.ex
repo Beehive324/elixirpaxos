@@ -16,7 +16,6 @@ defmodule EventualLeaderDetector do
       suspected: MapSet.new(),  # Keep track of suspected processes
       leader: nil  # No leader initially
     }
-
     # Start the event loop
     eld(state)
   end
@@ -26,7 +25,6 @@ defmodule EventualLeaderDetector do
     new_state =
       receive do
         {:suspect, proc} ->
-          IO.puts("Suspecting process #{inspect(proc)}")
           # Add the process to the suspected set
           %{state | suspected: MapSet.put(state.suspected, proc)}
 
