@@ -21,7 +21,7 @@ defmodule EventualLeaderDetector do
     eld(state)
   end
 
-  defp eld(state) do
+  def eld(state) do
     # Wait for messages
     new_state =
       receive do
@@ -51,7 +51,7 @@ defmodule EventualLeaderDetector do
     eld(new_state)
   end
 
-  defp determine_leader(state) do
+  def determine_leader(state) do
     # Find the leader as the smallest process ID not suspected
     Enum.find(state.processes, fn proc ->
       not MapSet.member?(state.suspected, proc)
