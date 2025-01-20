@@ -172,66 +172,56 @@ end
   #Leader Based functions
   #(1) Broadcast prepare
   def run(state) do
-    state = receive do
-      {:get_decision} ->
-        decision = Map.get(state.decisions)
-
-        if decision != nil do
-          send(state.participants, decision)
-          state
-        end
 
       # Prepare Phase
       {:prepare, value, t} ->
-        #send prepare message
-        prepare_req = {self(), state.proposal_number}
-        beb_broadcast({:prepare, prepare_req}, state.participants) # m , dest
-        proposal = {state.proposal_number, state.proposal_value}
-        state = %{ state |
-        prep_requests: MapSet.put(state.prep_requests, prepare_req), #store prepare request
-        proposal_number: state.proposal_number + 1,
-        bal: state.proposal_number + 1,
-        proposal_value: value,
-        quorom_size: div(length(state.participants), 2) + 1,
-        proposals: MapSet.put(state.proposals, proposal)
-        }
-        state
+        #assign a leader
+        leader = EventualLeaderDetector.determine_leader(Process.whereis(String.to_atom("#{state.name}_eld")))
 
-        promises = receivePromises(state.quorum_size, []) #p promises
-        state = %{state | promises: promises}
-        state
-        # If the proposer receives the requested responses  from a majority of acceptors
-		    if length(state.promises) >= div(state.quorum_size, 2)  do
-          max_promise = Enum.max_by(state.promises, fn {a_bal, _a_val, _pid} -> a_bal end, fn -> {0, nil, nil} end)
-          IO.puts("#{max_promise}")
-          {highest_a_bal, highest_a_val, _pid} = max_promise
-          new_value =
-            if highest_a_val == nil do
-              state.proposal_value
-              #propose(self(), state.inst, state.proposal_value, state.t)
-              #val = beb_broadcast({:accept, val}, state.participants) # send accept request
+        if state.name == leader do
+          prepare_req = {self(), state.proposal_number}
+
+          beb_broadcast({:prepare, prepare_req}, state.participants) # m , dest
+          proposal = {state.proposal_number, state.proposal_value}
+
+          state = %{ state |
+            prep_requests: MapSet.put(state.prep_requests, prepare_req), #store prepare request
+            proposal_number: state.proposal_number + 1,
+            bal: state.proposal_number + 1,
+            proposal_value: value,
+            quorom_size: div(length(state.participants), 2) + 1,
+            proposals: MapSet.put(state.proposals, proposal)
+          }
+
+          state
+          promises = receivePromises(state.quorum_size, []) #p promises
+          state = %{state | promises: promises}
+          state
+          if length(state.promises) >= div(state.quorum_size, 2)  do
+            max_promise = Enum.max_by(state.promises, fn {a_bal, _a_val, _pid} -> a_bal end, fn -> {0, nil, nil} end)
+            IO.puts("#{max_promise}")
+            {highest_a_bal, highest_a_val, _pid} = max_promise
+            new_value =
+              if highest_a_val == nil do
+                state.proposal_value
+                val =propose(self(), state.inst, state.proposal_value, state.t)
+                beb_broadcast({:accept, val}, state.participants) # send accept request
             else
               highest_a_val #return highest_val
-              #val = propose(self(), state.inst, highest_a_val, state.t)
-              #beb_broadcast({:accept, val}, state.participants) #send accept request
-            end
-          state = %{state | proposal_value: new_value}
-          IO.puts("Quorum reached. Selected value: #{new_value}")
-        else
-          state = %{state | proposal_number: state.proposal_number + 1, bal: state.proposal_number + 1}
-          IO.puts("Quorum not reached. Retrying...")
+              val = propose(self(), state.inst, highest_a_val, state.t)
+              beb_broadcast({:accept, val}, state.participants) #send accept request
+              end
+            state = %{state | proposal_value: new_value}
+            IO.puts("Quorum reached. Selected value: #{new_value}")
+          else
+            state = %{state | proposal_number: state.proposal_number + 1, bal: state.proposal_number + 1}
+            IO.puts("Quorum not reached. Retrying...")
+          end
+          state
+          state = %{ state | proposal_number: state.proposal_number,proposal_value: state.proposal_value,
+            proposals: MapSet.put(state.proposals, {state.proposal_number, state.proposal_value})}
+          beb_broadcast({:accept, {state.proposal_number, state.proposal_value}}, state.participants)
         end
-        state
-
-        state = %{ state | proposal_number: state.proposal_number,proposal_value: state.proposal_value,
-          proposals: MapSet.put(state.proposals, {state.proposal_number, state.proposal_value})}
-
-        beb_broadcast({:accept, {state.proposal_number, state.proposal_value}}, state.participants)
-
-
-
-
-
 
       # Accept Phae
       #(3)
