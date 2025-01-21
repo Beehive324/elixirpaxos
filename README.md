@@ -29,6 +29,17 @@ Liveness Property:
 Some proposed value is eventually chosen
 
 
+## Assumptions
+Consistency guarantees across processes.
+Fault tolerance in the presence of processes failures.
+Each key-value operation put, read, corresponds to a Paxos instance
+
+## Considerations
+Ensuring Correctness under failure-free conditions
+Verifying consistency of the distributed key-value store under 
+concurrent operations
+
+
 # API
 ## propose(pid, inst, value, t)
 
@@ -95,15 +106,17 @@ c "eld.ex"
 
 ```
 
+
 # Implementation: Storage Server
 
-The further abstraction we chose to implement on top of Paxos is a storage server,
+The abstraction we chose to implement on top of Paxos is a storage server,
 the main goal here is to ensure that data replicas remain consistent across nodes in a distributed environment 
 through providing consistent key-value storage across nodes.
 
 ## Features:
 
 Initiates a Paxos proposal to store a key-value pair.
+Ensures consistent replication of key-value pairs across distributed processes/nodes.
 
 ### API Methods:
 #### put(key, value):
@@ -112,10 +125,27 @@ Initiates a Paxos proposal to store a key-value pair.
 
 ##### get(key)
 - Retrieves the value associated with a key from the distributed key-value store
-- Return the value if it exists or None if the key was not found
+- Return the value if it exists or None/nil if the key was not found
 
 
-## Testing
+## Usage
+
+
+# Testing Storage Server Implementation
+1. start a storage server:
+```bash
+s = StorageServer.start(:server1, :global.whereis_name(:p1))
+```
+
+2. Insert and read data using the following operations:
+```bash
+StorageServer.put(key, value)
+StorageServer.read(key)
+```
+
+
+# Testing Paxos module
+
 1. Go into the test folder directory:
 ```bash
 cd test
@@ -129,7 +159,11 @@ epmd -daemon
 3. Run Tests using the following command:
 ```bash
 iex test_script.exs
+
 ```
+
+
+
 
 
 
