@@ -31,11 +31,14 @@ Some proposed value is eventually chosen
 
 ## Assumptions
 Consistency guarantees across processes.
+
 Fault tolerance in the presence of processes failures.
+
 Each key-value operation put, read, corresponds to a Paxos instance
 
 ## Considerations
 Ensuring Correctness under failure-free conditions
+
 Verifying consistency of the distributed key-value store under 
 concurrent operations
 
