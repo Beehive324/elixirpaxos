@@ -29,8 +29,8 @@ Liveness Property:
 Some proposed value is eventually chosen
 
 
-## API
-# propose(pid, inst, value, t)
+# API
+## propose(pid, inst, value, t)
 
 Proposes a value.
 
@@ -52,7 +52,7 @@ Returns:
 
 {:timeout} if no decision was reached before the timeout.
 
-# get_decision(pid, inst, t)
+## get_decision(pid, inst, t)
 
 Description: Retrieves a decision
 
@@ -95,18 +95,24 @@ c "eld.ex"
 
 ```
 
-## Implementation: Storage Server
+# Implementation: Storage Server
 
 The further abstraction we chose to implement on top of Paxos is a storage server,
 the main goal here is to ensure that data replicas remain consistent across nodes in a distributed environment 
 through providing consistent key-value storage across nodes.
 
-# Features:
+## Features:
 
 Initiates a Paxos proposal to store a key-value pair.
 
-Key Value Storage: Provides distributed, consistent storage of key-value pairs
+### API Methods:
+#### put(key, value):
+- Stores a key-value pair in the distributed key-value store.
+- Ensures consistency using Paxos consensus before committing the change
 
+##### get(key)
+- Retrieves the value associated with a key from the distributed key-value store
+- Return the value if it exists or None if the key was not found
 
 
 ## Testing
