@@ -1,7 +1,7 @@
 defmodule StorageServer do
   @moduledoc """
-  A storage server implementation that mimics a replicated data store using Paxos for achieving consensus.
-  This server ensures consistency across replicas by coordinating with Paxos processes.
+  A distributed storage server implementation that uses Paxos for consensus.
+  Provides consistent key-value storage across multiple nodes.
   """
 
   def start(name, paxos_proc) do
@@ -20,74 +20,187 @@ defmodule StorageServer do
       pax_pid: get_paxos_pid(paxos_proc),
       last_instance: 0,
       pending: {0, nil},
-      data_store: %{} # Key-value store to mimic a replicated database
+      data_store: %{}
     }
 
     # Ensures shared destiny (if one of the processes dies, the other does too)
     Process.link(state.pax_pid)
+    run(state)
+  end
+
+  defp get_paxos_pid(paxos_proc) do
+    case paxos_proc do
+      pid when is_pid(pid) -> pid
+      :undefined -> raise("Paxos process is not registered")
+      _ -> raise("Invalid Paxos process reference")
+    end
+  end
+
+  def put(pid, key, value) do
+    send(pid, {:put, self(), key, value})
+    receive do
+      {:put_ok} -> :ok
+      {:put_failed} -> :fail
+      {:abort} -> :fail
+    after
+      5000 -> :timeout
+    end
+  enddefmodule StorageServer do
+  @moduledoc """
+  A distributed storage server implementation that uses Paxos for consensus.
+  Provides consistent key-value storage across multiple nodes.
+  """
+
+  def start(name, paxos_proc) do
+    pid = spawn(StorageServer, :init, [name, paxos_proc])
+    pid = case :global.re_register_name(name, pid) do
+      :yes -> pid
+      :no -> nil
+    end
+    IO.puts(if pid, do: "registered #{name}", else: "failed to register #{name}")
+    pid
+  end
+
+  def init(name, paxos_proc) do
+    state = %{
+      name: name,
+      pax_pid: get_paxos_pid(paxos_proc),
+      last_instance: 0,
+      pending: {0, nil},
+      data_store: %{}
+    }
+
+    # Ensures shared destiny (if one of the processes dies, the other does too)
+    Process.link(state.pax_pid)
+    run(state)
+  end
+
+  defp get_paxos_pid(paxos_proc) do
+    case paxos_proc do
+      pid when is_pid(pid) -> pid
+      :undefined -> raise("Paxos process is not registered")
+      _ -> raise("Invalid Paxos process reference")
+    end
+  end
+
+  def put(pid, key, value) do
+    send(pid, {:put, self(), key, value})
+    receive do
+      {:put_ok} -> :ok
+      {:put_failed} -> :fail
+      {:abort} -> :fail
+    after
+      5000 -> :timeout
+    end
+  end
+
+  def get(pid, key) do
+    send(pid, {:get, self(), key})
+    receive do
+      {:get_reply, ^key, value} -> {:ok, value}
+      {:key_not_found, ^key} -> :not_found
+    after
+      5000 -> :timeout
+    end
+  end
+
+  def run(state) do
+    state = receive do
+      {:put, client, key, value} ->
+        state = poll_for_decisions(state)
+        if Paxos.propose(state.pax_pid, state.last_instance + 1, {:put, key, value}, 1000) == {:abort} do
+          send(client, {:abort})
+        else
+          %{state | pending: {state.last_instance + 1, client}}
+        end
+
+      {:get, client, key} ->
+        state = poll_for_decisions(state)
+        case Map.get(state.data_store, key) do
+          nil -> send(client, {:key_not_found, key})
+          value -> send(client, {:get_reply, key, value})
+        end
+        state
+
+      {:poll_for_decisions} ->
+        poll_for_decisions(state)
+
+      _ -> state
+    end
 
     run(state)
   end
 
-  # Retrieves the PID of the Paxos instance to connect to
-  defp get_paxos_pid(paxos_proc) do
-    case :global.whereis_name(paxos_proc) do
-      pid when is_pid(pid) -> pid
-      :undefined -> raise("Paxos process #{Atom.to_string(paxos_proc)} not found")
+  defp poll_for_decisions(state) do
+    case Paxos.get_decision(state.pax_pid, i = state.last_instance + 1, 1000) do
+      {:put, key, value} ->
+        state = case state.pending do
+          {^i, client} ->
+            send(client, {:put_ok})
+            %{state | pending: {0, nil}, data_store: Map.put(state.data_store, key, value)}
+
+          _ ->
+            %{state | data_store: Map.put(state.data_store, key, value)}
+        end
+        poll_for_decisions(%{state | last_instance: i})
+
+      nil -> state
+    end
+  end
+end
+
+
+  def get(pid, key) do
+    send(pid, {:get, self(), key})
+    receive do
+      {:get_reply, ^key, value} -> {:ok, value}
+      {:key_not_found, ^key} -> :not_found
+    after
+      5000 -> :timeout
     end
   end
 
-  defp run(state) do
-    receive do
-      {:write, key, value, sender} ->
-        new_instance = state.last_instance + 1
-        state = %{state | last_instance: new_instance, pending: {new_instance, sender}}
-        send(state.pax_pid, {:propose, new_instance, {key, value}, self()})
-        run(state)
+  def run(state) do
+    state = receive do
+      {:put, client, key, value} ->
+        state = poll_for_decisions(state)
+        if Paxos.propose(state.pax_pid, state.last_instance + 1, {:put, key, value}, 1000) == {:abort} do
+          send(client, {:abort})
+        else
+          %{state | pending: {state.last_instance + 1, client}}
+        end
 
-      {:read, key, sender} ->
-        value = Map.get(state.data_store, key, :not_found)
-        send(sender, {:read_reply, key, value})
-        run(state)
+      {:get, client, key} ->
+        state = poll_for_decisions(state)
+        case Map.get(state.data_store, key) do
+          nil -> send(client, {:key_not_found, key})
+          value -> send(client, {:get_reply, key, value})
+        end
+        state
 
       {:poll_for_decisions} ->
-        state = poll_for_decisions(state)
-        run(state)
+        poll_for_decisions(state)
 
-      {:decision, instance, {key, value}} ->
-        if instance == state.last_instance do
-          # Update the data store and notify the sender if it matches the pending instance
-          {_instance, sender} = state.pending
-          new_data_store = Map.put(state.data_store, key, value)
-          send(sender, {:write_ack, key, value})
-          state = %{state | data_store: new_data_store, pending: {0, nil}}
-        end
-        run(state)
+      _ -> state
     end
+
+    run(state)
   end
 
   defp poll_for_decisions(state) do
-    send(state.pax_pid, {:get_decision, state.last_instance, self()})
-    receive do
-      {:decision, instance, {key, value}} when instance == state.last_instance ->
-        IO.puts("#{state.name}: Decided value #{inspect(value)} for key #{inspect(key)} in instance #{instance}")
-        new_data_store = Map.put(state.data_store, key, value)
-        %{state | data_store: new_data_store, pending: {0, nil}}
-      after
-        1000 ->
-          IO.puts("#{state.name}: No decision yet for instance #{state.last_instance}")
-          state
-    end
-  end
+    case Paxos.get_decision(state.pax_pid, i = state.last_instance + 1, 1000) do
+      {:put, key, value} ->
+        state = case state.pending do
+          {^i, client} ->
+            send(client, {:put_ok})
+            %{state | pending: {0, nil}, data_store: Map.put(state.data_store, key, value)}
 
-  defp wait_for_reply(_, 0), do: nil
-  defp wait_for_reply(r, attempt) do
-    msg = receive do
-      msg -> msg
-      after 1000 ->
-        send(r, {:poll_for_decisions})
-        nil
+          _ ->
+            %{state | data_store: Map.put(state.data_store, key, value)}
+        end
+        poll_for_decisions(%{state | last_instance: i})
+
+      nil -> state
     end
-    if msg, do: msg, else: wait_for_reply(r, attempt - 1)
   end
 end
